@@ -21,14 +21,13 @@ import projects.heartbeat.models.TableEntry;
 public class ENode extends Node {
 
   private Color color = Color.BLUE;
-  private List<TableEntry> table;
-  private ENode successor;
-  private long timeStamp;
-  private final long T = 10;
+  private HashMap<Long, Long> timestampTable;
+  private long timestamp;
 
   public ENode() {
     super();
-    this.timeStamp = 0;
+    this.timestamp = 0;
+    this.timestampTable = new HashMap<Long, Long>();
   }
 
   @Override
@@ -36,13 +35,9 @@ public class ENode extends Node {
     for (Message msg : inbox) {
       if (msg instanceof EMessage){
         EMessage emsg = (EMessage) msg;
-        mergeTables(emsg.getTable());
+        this.timestampTable.put(emsg.getId(), emsg.getTimestamp());
       }
     }
-  }
-
-  public void mergeTables(List<TableEntry> table){
-
   }
 
   public String toString() {
@@ -52,28 +47,31 @@ public class ENode extends Node {
   @Override
   public void neighborhoodChange() {
     Connections nodeConnections = this.getOutgoingConnections();
-    ENode firstConnectionNode = (ENode) nodeConnections.iterator().next().getEndNode();
-    successor = null;
+    Set<Long> currentTableIds = this.timestampTable.keySet();
 
     for (Edge edge : nodeConnections) {
       ENode endNode = (ENode) edge.getEndNode();
-      if (endNode.compareTo(this) > 0) {
-        if (successor == null)
-          successor = endNode;
-        else
-          successor = endNode.compareTo(successor) < 0 ? endNode : successor;
+      long id = endNode.getID();
+      long timestamp = endNode.getTimestamp();
+      if(this.timestampTable.containsKey(id)) {
+        currentTableIds.remove(id); // Vai removendo, se sobra no fim, deu falha naqueles que sobraram.
+      } else {
+        this.timestampTable.put(id, timestamp);
       }
     }
 
-    if (successor == null) { // Last Node
-      successor = firstConnectionNode;
-      System.out.println(String.format("Last node %d.", this.getID()));
-      for (Edge edge : nodeConnections) { // Find the smallest
-        ENode endNode = (ENode) edge.getEndNode();
-        successor = endNode.compareTo(successor) < 0 ? endNode : successor;
+    if(currentTableIds.size() > 0) {
+      Set<Long> setClone = new HashSet<Long>(currentTableIds);
+      System.out.print("HOUVERAM FALHAS NOS SEGUINTES NÓS: ");
+      Iterator it = setClone.iterator();
+      while(it.hasNext()){
+        long id = (long)it.next();
+        System.out.print(id);
+        this.timestampTable.remove(id);
       }
+      System.out.println();
+      // TODO(@andre): Notificar uma falha na tela de verdade
     }
-    System.out.print(String.format("Sucessor of %s is %s", this, successor));
   }
 
   public void draw(Graphics g, PositionTransformation pt, boolean highlight) {
@@ -86,31 +84,57 @@ public class ENode extends Node {
 
   @NodePopupMethod(menuText = "Print timeStamp")
   public void printTimeStamp(){
-    Tools.appendToOutput(String.format("Current timeStamp is %s \n", this.timeStamp));
+    Tools.appendToOutput(String.format("Current timeStamp is %s \n", this.timestamp));
   }
 
-  // @NodePopupMethod(menuText = "Start Election")
-  // public void startElection() {
-  //   EMessage msg = new EMessage(this.getID(), MessageType.ELECTION);
-  //   ETimer timer = new ETimer(this, successor, 1);
-  //
-  //   timer.startRelative(1, this);
-  //   Tools.appendToOutput(String.format("Start Routing from %s \n", this));
-  // }
-
   public void preStep() {
+    this.timestamp++;
+    sendHeartbeats();
   }
 
   public void init() {
   }
 
   public void postStep() {
-    this.timeStamp ++;
+    verifyFailures();
+  }
+
+  public void verifyFailures() {
+    HashMap<Long, Long> tableClone = new HashMap<Long, Long>(this.timestampTable);
+    Iterator it = tableClone.entrySet().iterator();
+    while(it.hasNext()) {
+      Map.Entry pair = (Map.Entry)it.next();
+      long id = (long)pair.getKey();
+      long timestamp = (long)pair.getValue();
+      if(this.timestamp > timestamp + 1) { // O + 1 é gambiaraa, tem que resolver
+        System.out.println("HOUVE UMA FALHA NO NÓ " + id);
+        this.timestampTable.remove(id);
+        // TODO(@andre): Notificar uma falha na tela de verdade
+      }
+    }
+  }
+
+  public void sendHeartbeats() {
+    Connections nodeConnections = this.getOutgoingConnections();
+    EMessage msg = new EMessage(this.getID(), this.timestamp); 
+    if(nodeConnections != null){
+      for (Edge edge : nodeConnections) {
+        this.send(msg, edge.getEndNode());
+      }
+    }
   }
 
   public void checkRequirements() {
   }
 
   public void compute() {
+  }
+
+  public long getTimestamp() {
+    return this.timestamp;
+  }
+
+  public void setTimestamp(long timestamp) {
+    this.timestamp = timestamp;
   }
 }
