@@ -21,23 +21,38 @@ import projects.heartbeat.models.TableEntry;
 public class ENode extends Node {
 
   private Color color = Color.BLUE;
-  private HashMap<Long, Long> heartbeatTable;
+  private HashMap<Long, TableEntry> table;
   private long heartbeat;
+  private long timeStamp;
   private boolean working;
+  private int t;
 
   public ENode() {
     super();
     this.heartbeat = 0;
-    this.heartbeatTable = new HashMap<Long, Long>();
+    this.timeStamp = 0;
+    this.table = new HashMap<Long, TableEntry>();
     this.working = true;
+    this.t = 3;
   }
 
   @Override
   public void handleMessages(Inbox inbox) {
-    for (Message msg : inbox) {
-      if (msg instanceof EMessage){
-        EMessage emsg = (EMessage) msg;
-        this.heartbeatTable.put(emsg.getId(), emsg.getHeartbeat());
+    if(this.working){
+      for (Message msg : inbox) {
+        if (msg instanceof EMessage){
+          EMessage emsg = (EMessage) msg;
+          TableEntry tableEntry = (TableEntry)this.table.get(emsg.getId());
+          if (tableEntry != null){
+            long entryHeartbeat = tableEntry.getHeartbeat();
+            if(emsg.getHeartbeat() > entryHeartbeat){//nova mensagem
+              this.table.put(emsg.getId(), new TableEntry(emsg.getId(), this.timeStamp, emsg.getHeartbeat()));
+            }
+          }
+          else{
+            this.table.put(emsg.getId(), new TableEntry(emsg.getId(), this.timeStamp, emsg.getHeartbeat()));
+          }
+        }
       }
     }
   }
@@ -49,30 +64,6 @@ public class ENode extends Node {
   @Override
   public void neighborhoodChange() {
     Connections nodeConnections = this.getOutgoingConnections();
-    Set<Long> currentTableIds = this.heartbeatTable.keySet();
-
-    for (Edge edge : nodeConnections) {
-      ENode endNode = (ENode) edge.getEndNode();
-      long id = endNode.getID();
-      long heartbeat = endNode.getHeartbeat();
-      if(this.heartbeatTable.containsKey(id)) {
-        currentTableIds.remove(id); // Vai removendo, se sobra no fim, deu falha naqueles que sobraram.
-      } else {
-        this.heartbeatTable.put(id, heartbeat);
-      }
-    }
-
-    if(currentTableIds.size() > 0) {
-      Set<Long> setClone = new HashSet<Long>(currentTableIds);
-      System.out.print("HOUVERAM FALHAS NOS SEGUINTES NÓS: ");
-      Iterator it = setClone.iterator();
-      while(it.hasNext()){
-        long id = (long)it.next();
-        System.out.print(id);
-        this.heartbeatTable.remove(id);
-      }
-      System.out.println();
-    }
   }
 
   public void draw(Graphics g, PositionTransformation pt, boolean highlight) {
@@ -85,52 +76,82 @@ public class ENode extends Node {
 
   @NodePopupMethod(menuText = "Print heartbeat")
   public void printheartbeat(){
-    Tools.appendToOutput(String.format("Current heartbeat is %s.\n", this.heartbeat));
+    System.out.println("-----");
+    System.out.println("heartbeat do Nó " + this.getID() + ": " + this.heartbeat);
   }
 
-  @NodePopupMethod(menuText = "Set failure")
-  public void setFailure(){
+  @NodePopupMethod(menuText = "Print timeStamp")
+  public void printTimeStamp(){
+    System.out.println("-----");
+    System.out.println("heartbeat do Nó " + this.getID() + ": " + this.timeStamp);
+  }
+
+  @NodePopupMethod(menuText = "Show table")
+  public void showTable(){
+    HashMap<Long, TableEntry> tableClone = new HashMap<Long, TableEntry>(this.table);
+    Iterator it = tableClone.entrySet().iterator();
+    if(tableClone.size() < 1){
+      System.out.println("The table is empty");
+    }
+    else{
+      System.out.println("-----");
+      System.out.println("Tabela do Nó: "+this.getID());
+      while(it.hasNext()) {
+        Map.Entry pair = (Map.Entry)it.next();
+        TableEntry tableEntry = (TableEntry)pair.getValue();
+        long entryId = (long)pair.getKey();
+        System.out.println("id: " + entryId + " | heartbeat: " + tableEntry.getHeartbeat() + " | timeStamp: "+tableEntry.getTimeStamp());
+      }
+    }
+  }
+
+  @NodePopupMethod(menuText = "Switch Working")
+  public void switchWorking(){
     this.working = !this.working;
   }
 
   public void preStep() {
-    this.heartbeat++;
     if(this.working){
+      this.heartbeat++;
+      this.timeStamp++;
       this.color = Color.BLUE;
       sendHeartbeats();
     } else {
       this.color = Color.PINK;
     }
-      
-    
   }
 
   public void init() {
   }
 
   public void postStep() {
-    verifyFailures(); 
+    verifyFailures();
   }
 
   public void verifyFailures() {
-    HashMap<Long, Long> tableClone = new HashMap<Long, Long>(this.heartbeatTable);
+    HashMap<Long, TableEntry> tableClone = new HashMap<Long, TableEntry>(this.table);
     Iterator it = tableClone.entrySet().iterator();
     while(it.hasNext()) {
       Map.Entry pair = (Map.Entry)it.next();
-      long id = (long)pair.getKey();
-      long heartbeat = (long)pair.getValue();
-      if(this.heartbeat > heartbeat + 1) { // O + 1 é gambiaraa, tem que resolver
-        System.out.println("Nó " + this.getID() + ": HOUVE UMA FALHA NO NÓ " + id);
+      TableEntry tableEntry = (TableEntry)pair.getValue();
+      long entryId = (long)pair.getKey();
+
+      if(this.timeStamp - tableEntry.getTimeStamp() > t ){
+        System.out.println("-----");
+        System.out.println("Nó " + this.getID() + ": Falha detectada no nó: " + entryId);
+        this.table.remove(entryId);
       }
     }
   }
 
   public void sendHeartbeats() {
-    Connections nodeConnections = this.getOutgoingConnections();
-    EMessage msg = new EMessage(this.getID(), this.heartbeat); 
-    if(nodeConnections != null){
-      for (Edge edge : nodeConnections) {
-        this.send(msg, edge.getEndNode());
+    if(working){
+      Connections nodeConnections = this.getOutgoingConnections();
+      EMessage msg = new EMessage(this.getID(), this.heartbeat);
+      if(nodeConnections != null){
+        for (Edge edge : nodeConnections) {
+          this.send(msg, edge.getEndNode());
+        }
       }
     }
   }

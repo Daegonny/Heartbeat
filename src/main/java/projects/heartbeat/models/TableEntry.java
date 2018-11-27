@@ -5,13 +5,13 @@ import java.util.Arrays;
 
 public class TableEntry{
   private long id;
+  private long heartbeat;
   private long timeStamp;
-  private boolean flag;
 
-  public TableEntry(long id, long timeStamp){
+  public TableEntry(long id, long timeStamp, long heartbeat){
     this.id = id;
+    this.heartbeat = heartbeat;
     this.timeStamp = timeStamp;
-    this.flag = false;
   }
 
   public long getId(){
@@ -22,20 +22,11 @@ public class TableEntry{
     return this.timeStamp;
   }
 
-  public boolean getFlag(){
-    return this.flag;
+  public long getHeartbeat(){
+    return this.heartbeat;
   }
 
   public void setTimeStamp(long timeStamp){
     this.timeStamp = timeStamp;
   }
-
-  public void mark(){
-    this.flag = true;
-  }
-
-  public void unmark(){
-    this.flag = false;
-  }
-
 }
