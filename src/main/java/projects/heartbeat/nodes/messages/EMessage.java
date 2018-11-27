@@ -8,15 +8,15 @@ import java.util.Arrays;
 
 /* Description of Message Type */
 public class EMessage extends Message {
-  public long id, timestamp;
+  public long id, heartbeat;
 
-  public EMessage(long id, long timestamp) {
+  public EMessage(long id, long heartbeat) {
     this.id = id;
-    this.timestamp = timestamp;
+    this.heartbeat = heartbeat;
   }
 
   public Message clone() {
-    return new EMessage(this.id, this.timestamp);
+    return new EMessage(this.id, this.heartbeat);
   }
 
   public long getId() {
@@ -27,11 +27,11 @@ public class EMessage extends Message {
     this.id = id;
   }
 
-  public long getTimestamp(){
-    return this.timestamp;
+  public long getHeartbeat(){
+    return this.heartbeat;
   }
 
-  public void setTimestamp(long timestamp) {
-    this.timestamp = timestamp;
+  public void setheartbeat(long heartbeat) {
+    this.heartbeat = heartbeat;
   }
 }

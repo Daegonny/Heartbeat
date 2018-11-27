@@ -21,13 +21,15 @@ import projects.heartbeat.models.TableEntry;
 public class ENode extends Node {
 
   private Color color = Color.BLUE;
-  private HashMap<Long, Long> timestampTable;
-  private long timestamp;
+  private HashMap<Long, Long> heartbeatTable;
+  private long heartbeat;
+  private boolean working;
 
   public ENode() {
     super();
-    this.timestamp = 0;
-    this.timestampTable = new HashMap<Long, Long>();
+    this.heartbeat = 0;
+    this.heartbeatTable = new HashMap<Long, Long>();
+    this.working = true;
   }
 
   @Override
@@ -35,7 +37,7 @@ public class ENode extends Node {
     for (Message msg : inbox) {
       if (msg instanceof EMessage){
         EMessage emsg = (EMessage) msg;
-        this.timestampTable.put(emsg.getId(), emsg.getTimestamp());
+        this.heartbeatTable.put(emsg.getId(), emsg.getHeartbeat());
       }
     }
   }
@@ -47,16 +49,16 @@ public class ENode extends Node {
   @Override
   public void neighborhoodChange() {
     Connections nodeConnections = this.getOutgoingConnections();
-    Set<Long> currentTableIds = this.timestampTable.keySet();
+    Set<Long> currentTableIds = this.heartbeatTable.keySet();
 
     for (Edge edge : nodeConnections) {
       ENode endNode = (ENode) edge.getEndNode();
       long id = endNode.getID();
-      long timestamp = endNode.getTimestamp();
-      if(this.timestampTable.containsKey(id)) {
+      long heartbeat = endNode.getHeartbeat();
+      if(this.heartbeatTable.containsKey(id)) {
         currentTableIds.remove(id); // Vai removendo, se sobra no fim, deu falha naqueles que sobraram.
       } else {
-        this.timestampTable.put(id, timestamp);
+        this.heartbeatTable.put(id, heartbeat);
       }
     }
 
@@ -67,10 +69,9 @@ public class ENode extends Node {
       while(it.hasNext()){
         long id = (long)it.next();
         System.out.print(id);
-        this.timestampTable.remove(id);
+        this.heartbeatTable.remove(id);
       }
       System.out.println();
-      // TODO(@andre): Notificar uma falha na tela de verdade
     }
   }
 
@@ -79,44 +80,54 @@ public class ENode extends Node {
     Color textColor = Color.WHITE;
 
     this.setColor(this.color);
-    super.drawNodeAsDiskWithText(g, pt, highlight, text, 70, textColor);
+    super.drawNodeAsDiskWithText(g, pt, highlight, text, 40, textColor);
   }
 
-  @NodePopupMethod(menuText = "Print timeStamp")
-  public void printTimeStamp(){
-    Tools.appendToOutput(String.format("Current timeStamp is %s \n", this.timestamp));
+  @NodePopupMethod(menuText = "Print heartbeat")
+  public void printheartbeat(){
+    Tools.appendToOutput(String.format("Current heartbeat is %s.\n", this.heartbeat));
+  }
+
+  @NodePopupMethod(menuText = "Set failure")
+  public void setFailure(){
+    this.working = !this.working;
   }
 
   public void preStep() {
-    this.timestamp++;
-    sendHeartbeats();
+    this.heartbeat++;
+    if(this.working){
+      this.color = Color.BLUE;
+      sendHeartbeats();
+    } else {
+      this.color = Color.PINK;
+    }
+      
+    
   }
 
   public void init() {
   }
 
   public void postStep() {
-    verifyFailures();
+    verifyFailures(); 
   }
 
   public void verifyFailures() {
-    HashMap<Long, Long> tableClone = new HashMap<Long, Long>(this.timestampTable);
+    HashMap<Long, Long> tableClone = new HashMap<Long, Long>(this.heartbeatTable);
     Iterator it = tableClone.entrySet().iterator();
     while(it.hasNext()) {
       Map.Entry pair = (Map.Entry)it.next();
       long id = (long)pair.getKey();
-      long timestamp = (long)pair.getValue();
-      if(this.timestamp > timestamp + 1) { // O + 1 é gambiaraa, tem que resolver
-        System.out.println("HOUVE UMA FALHA NO NÓ " + id);
-        this.timestampTable.remove(id);
-        // TODO(@andre): Notificar uma falha na tela de verdade
+      long heartbeat = (long)pair.getValue();
+      if(this.heartbeat > heartbeat + 1) { // O + 1 é gambiaraa, tem que resolver
+        System.out.println("Nó " + this.getID() + ": HOUVE UMA FALHA NO NÓ " + id);
       }
     }
   }
 
   public void sendHeartbeats() {
     Connections nodeConnections = this.getOutgoingConnections();
-    EMessage msg = new EMessage(this.getID(), this.timestamp); 
+    EMessage msg = new EMessage(this.getID(), this.heartbeat); 
     if(nodeConnections != null){
       for (Edge edge : nodeConnections) {
         this.send(msg, edge.getEndNode());
@@ -130,11 +141,11 @@ public class ENode extends Node {
   public void compute() {
   }
 
-  public long getTimestamp() {
-    return this.timestamp;
+  public long getHeartbeat() {
+    return this.heartbeat;
   }
 
-  public void setTimestamp(long timestamp) {
-    this.timestamp = timestamp;
+  public void setheartbeat(long heartbeat) {
+    this.heartbeat = heartbeat;
   }
 }
