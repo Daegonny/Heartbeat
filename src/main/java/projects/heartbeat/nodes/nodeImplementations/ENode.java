@@ -83,7 +83,7 @@ public class ENode extends Node {
   @NodePopupMethod(menuText = "Print timeStamp")
   public void printTimeStamp(){
     System.out.println("-----");
-    System.out.println("heartbeat do Nó " + this.getID() + ": " + this.timeStamp);
+    System.out.println("timeStamp do Nó " + this.getID() + ": " + this.timeStamp);
   }
 
   @NodePopupMethod(menuText = "Show table")
